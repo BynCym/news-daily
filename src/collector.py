@@ -10,7 +10,7 @@ from collections import defaultdict
 import feedparser
 import httpx
 
-from config import SOURCES, CATEGORIES, MAX_CHARS_PER_CATEGORY, MAX_ARTICLES_PER_FEED, REQUEST_TIMEOUT
+from config import SOURCES, CATEGORIES, MAX_CHARS_PER_CATEGORY, MAX_ARTICLES_PER_FEED, REQUEST_TIMEOUT, HOUR_BOUNDARY
 
 logger = logging.getLogger(__name__)
 
