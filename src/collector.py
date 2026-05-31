@@ -7,6 +7,8 @@ from datetime import datetime, timezone, timedelta
 from typing import Dict, List
 from collections import defaultdict
 
+import re
+
 import feedparser
 import httpx
 
@@ -19,6 +21,15 @@ CST = timezone(timedelta(hours=8))
 
 def _now_cst() -> datetime:
     return datetime.now(CST)
+
+
+def _strip_html(text: str) -> str:
+    """去除 HTML 标签，还原纯文本。"""
+    if not text:
+        return ""
+    text = re.sub(r'<[^>]+>', '', text)
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
 
 
 def _text_len(text: str) -> int:
@@ -77,7 +88,7 @@ def fetch_feed(source) -> List[Dict]:
 
             articles.append({
                 "title": title,
-                "summary": summary_raw,
+                "summary": _strip_html(summary_raw),
                 "link": link,
                 "source": source.name,
                 "category": source.category,
@@ -100,12 +111,28 @@ def collect_all() -> Dict[str, list]:
     for art in raw_articles:
         grouped[art["category"]].append(art)
 
+    # 只保留当天 22:00 起往前 24 小时内的新闻
+    now_cst = _now_cst()
+    if now_cst.hour >= HOUR_BOUNDARY:
+        cutoff = now_cst.replace(hour=HOUR_BOUNDARY, minute=0, second=0, microsecond=0)
+    else:
+        cutoff = (now_cst - timedelta(days=1)).replace(hour=HOUR_BOUNDARY, minute=0, second=0, microsecond=0)
+    cutoff_utc = cutoff.astimezone(timezone.utc)
+
     result = {}
     for cat_id in CATEGORIES:
         arts = grouped.get(cat_id, [])
+
+        # 过滤：跳过无时间戳或超出 24 小时窗的文章
+        filtered = []
+        for art in arts:
+            pub = art.get("published")
+            if pub is not None and pub >= cutoff_utc:
+                filtered.append(art)
+
         seen_links = set()
         deduped = []
-        for art in arts:
+        for art in filtered:
             if art["link"] not in seen_links:
                 seen_links.add(art["link"])
                 deduped.append(art)
